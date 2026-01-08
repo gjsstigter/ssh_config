@@ -22,7 +22,10 @@ var generateCmd = &cobra.Command{
 		fmt.Printf("Dry Run: %v\n", dryRun)
 
 		// Add logic to generate SSH config files here
-		ssh_config.Parser(input, output, dryRun)
+		err := ssh_config.Parser(input, output, dryRun)
+		if err != nil {
+			fmt.Printf("Error generating SSH config: %v\n", err)
+		}
 	},
 }
 

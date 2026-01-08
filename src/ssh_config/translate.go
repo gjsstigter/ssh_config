@@ -54,5 +54,5 @@ func Translate(host Host) ([]SSHConfigHost, error) {
 		sshConfigHosts = append(sshConfigHosts, sshConfigHost)
 		return sshConfigHosts, nil
 	}
-	return []SSHConfigHost{}, fmt.Errorf("Hostname is empty for host: %s", host.Name)
+	return []SSHConfigHost{}, fmt.Errorf("hostname is empty for host: %s", host.Name)
 }

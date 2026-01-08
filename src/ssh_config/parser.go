@@ -67,15 +67,15 @@ func removeDuplicates(hosts []SSHConfigHost) []SSHConfigHost {
 
 // writeHostEntry formats and writes a single SSH host entry
 func writeHostEntry(output *strings.Builder, host SSHConfigHost) {
-	output.WriteString(fmt.Sprintf("Host %s\n", strings.Join(host.Hosts, " ")))
-	output.WriteString(fmt.Sprintf("  Hostname %s\n", host.Hostname))
+	fmt.Fprintf(output, "Host %s\n", strings.Join(host.Hosts, " "))
+	fmt.Fprintf(output, "  Hostname %s\n", host.Hostname)
 
 	if host.Port != 0 {
-		output.WriteString(fmt.Sprintf("  Port %d\n", host.Port))
+		fmt.Fprintf(output, "  Port %d\n", host.Port)
 	}
 
 	if host.User != "" {
-		output.WriteString(fmt.Sprintf("  User %s\n", host.User))
+		fmt.Fprintf(output, "  User %s\n", host.User)
 	}
 
 	output.WriteString("\n")
