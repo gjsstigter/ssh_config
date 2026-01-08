@@ -2,72 +2,81 @@ package ssh_config
 
 import (
 	"fmt"
-	"log"
-
-	"github.com/hashicorp/hcl/v2/hclsimple"
+	"os"
+	"strings"
 )
 
-// 1. Root Schema: Represents the entire file
-type Config struct {
-	Hosts []Host `hcl:"host,block"`
-}
-
-// 2. Host Block Schema
-type Host struct {
-	Name     string `hcl:"name,label"` // Captures "my-service"
-	Hostname string `hcl:"hostname"`
-	Alias    string `hcl:"alias"`
-
-	// IMPORTANT: This is an Attribute (has '=' in HCL), not a Block.
-	// We map it to a struct to decode the object inside.
-	Config HostDetails `hcl:"config"`
-}
-
-// 3. Config Object Schema
-// Because this is decoding an attribute value (Object), we use 'cty' tags
-// to map the keys inside the object { ... } to struct fields.
-type HostDetails struct {
-	User         string `cty:"user"`
-	IdentityFile string `cty:"identity_file"`
-	Port         int    `cty:"port"`
-}
-
-func Parse(input string) (Config, error) {
-	var cfg Config
-	err := hclsimple.DecodeFile(input, nil, &cfg)
+// Parser converts input SSH config to output format
+func Parser(inputPath string, outputPath string, dryRun bool) error {
+	// Parse the input config file
+	cfg, err := Parse(inputPath)
 	if err != nil {
-		log.Fatalf("Failed to decode: %s", err)
-		return Config{}, err
+		return fmt.Errorf("failed to parse input: %w", err)
 	}
-	return cfg, nil
+
+	// Build the output content
+	var output strings.Builder
+
+	for _, host := range cfg.Hosts {
+		// Translate host configuration
+		sshHosts, err := Translate(host)
+		if err != nil {
+			return fmt.Errorf("failed to translate host: %w", err)
+		}
+
+		// Remove duplicate hostnames
+		sshHosts = removeDuplicates(sshHosts)
+
+		// Generate SSH config entries
+		for _, host := range sshHosts {
+			writeHostEntry(&output, host)
+		}
+	}
+
+	// Print to console
+	fmt.Print(output.String())
+
+	// Write to file if not dry run
+	if dryRun {
+		fmt.Println("Dry run enabled, not writing to file.")
+		return nil
+	}
+
+	if err := os.WriteFile(outputPath, []byte(output.String()), 0644); err != nil {
+		return fmt.Errorf("failed to write output file: %w", err)
+	}
+
+	fmt.Printf("Successfully wrote to: %s\n", outputPath)
+	return nil
 }
 
-func List(input string) {
-	cfg, err := Parse(input)
-	if err != nil {
-		log.Fatalf("Error parsing config: %s", err)
-		return
+// removeDuplicates filters out SSH hosts with duplicate hostnames
+func removeDuplicates(hosts []SSHConfigHost) []SSHConfigHost {
+	seen := make(map[string]bool)
+	unique := []SSHConfigHost{}
+
+	for _, host := range hosts {
+		if !seen[host.Hostname] {
+			seen[host.Hostname] = true
+			unique = append(unique, host)
+		}
 	}
 
-	for _, h := range cfg.Hosts {
-		fmt.Printf("Loaded Host: %s\n", h.Name)
-		fmt.Printf(" - Hostname: %s\n", h.Hostname)
-		fmt.Printf(" - Port:     %d\n", h.Config.Port)
-	}
+	return unique
 }
 
-func Parser(input string, output string, dryRun bool) (string, error) {
+// writeHostEntry formats and writes a single SSH host entry
+func writeHostEntry(output *strings.Builder, host SSHConfigHost) {
+	output.WriteString(fmt.Sprintf("Host %s\n", strings.Join(host.Hosts, " ")))
+	output.WriteString(fmt.Sprintf("  Hostname %s\n", host.Hostname))
 
-	cfg, err := Parse(input)
-	if err != nil {
-		return "", err
+	if host.Port != 0 {
+		output.WriteString(fmt.Sprintf("  Port %d\n", host.Port))
 	}
 
-	for _, h := range cfg.Hosts {
-		fmt.Printf("Loaded Host: %s\n", h.Name)
-		fmt.Printf(" - Hostname: %s\n", h.Hostname)
-		fmt.Printf(" - Port:     %d\n", h.Config.Port)
+	if host.User != "" {
+		output.WriteString(fmt.Sprintf("  User %s\n", host.User))
 	}
 
-	return "", nil
+	output.WriteString("\n")
 }
